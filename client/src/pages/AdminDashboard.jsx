@@ -8,6 +8,7 @@ import EmployeeList from '../components/EmployeeList'
 import Toast from '../components/Toast'
 import LoadingOverlay from '../components/LoadingOverlay'
 import ConfirmModal from '../components/ConfirmModal'
+import { API_URL } from '../config'
 
 export default function AdminDashboard({ user, onLogout }) {
   const [activeTab, setActiveTab] = useState('pending')
@@ -40,7 +41,7 @@ export default function AdminDashboard({ user, onLogout }) {
   const loadSubmissions = async () => {
     try {
       const status = activeTab === 'all' ? '' : activeTab
-      const response = await fetch(`/api/submissions?status=${status}`)
+      const response = await fetch(`${API_URL}/api/submissions?status=${status}`)
       const data = await response.json()
       setSubmissions(data)
     } catch (err) {
@@ -50,7 +51,7 @@ export default function AdminDashboard({ user, onLogout }) {
 
   const loadStats = async () => {
     try {
-      const response = await fetch('/api/statistics')
+      const response = await fetch(`${API_URL}/api/statistics`)
       const data = await response.json()
       setStats(data)
     } catch (err) {
@@ -60,7 +61,7 @@ export default function AdminDashboard({ user, onLogout }) {
 
   const loadRegistrationStats = async () => {
     try {
-      const response = await fetch('/api/registration-requests?status=')
+      const response = await fetch(`${API_URL}/api/registration-requests?status=`)
       const data = await response.json()
       
       // Calculate stats from all registrations
@@ -79,7 +80,7 @@ export default function AdminDashboard({ user, onLogout }) {
   const loadRegistrations = async () => {
     try {
       const status = activeTab === 'all' ? '' : activeTab
-      const response = await fetch(`/api/registration-requests?status=${status}`)
+      const response = await fetch(`${API_URL}/api/registration-requests?status=${status}`)
       const data = await response.json()
       setRegistrations(data)
       
@@ -101,7 +102,7 @@ export default function AdminDashboard({ user, onLogout }) {
   const handleReview = async (submissionId, status) => {
     setLoading(true)
     try {
-      const response = await fetch(`/api/submissions/${submissionId}`, {
+      const response = await fetch(`${API_URL}/api/submissions/${submissionId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -135,7 +136,7 @@ export default function AdminDashboard({ user, onLogout }) {
 
     setLoading(true)
     try {
-      const response = await fetch(`/api/registration-requests/${registrationId}/${action}`, {
+      const response = await fetch(`${API_URL}/api/registration-requests/${registrationId}/${action}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

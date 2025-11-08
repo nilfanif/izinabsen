@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { LogIn, UserCircle, Lock, Calendar, Clock, AlertCircle } from 'lucide-react'
+import { API_URL } from '../config'
 
 export default function Login({ onLogin }) {
   const [username, setUsername] = useState('')
@@ -15,7 +16,7 @@ export default function Login({ onLogin }) {
     setLoading(true)
 
     try {
-      const response = await fetch('/api/login', {
+      const response = await fetch(`${API_URL}/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })

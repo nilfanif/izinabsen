@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { UserPlus, ArrowLeft, CheckCircle, AlertCircle, Eye, EyeOff } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { API_URL } from '../config'
 
 export default function RegistrationPage() {
   const navigate = useNavigate()
@@ -65,7 +66,7 @@ export default function RegistrationPage() {
     setError('')
 
     try {
-      const response = await fetch('/api/register', {
+      const response = await fetch(`${API_URL}/api/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

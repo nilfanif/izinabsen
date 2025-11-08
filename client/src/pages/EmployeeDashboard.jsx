@@ -4,6 +4,7 @@ import { format, subMonths, addMonths } from 'date-fns'
 import { id } from 'date-fns/locale'
 import Toast from '../components/Toast'
 import LoadingOverlay from '../components/LoadingOverlay'
+import { API_URL } from '../config'
 
 export default function EmployeeDashboard({ user, onLogout }) {
   const [activeTab, setActiveTab] = useState('form')
@@ -66,7 +67,7 @@ export default function EmployeeDashboard({ user, onLogout }) {
     if (!user.employeeId) return
     
     try {
-      const response = await fetch(`/api/employees/${user.employeeId}`)
+      const response = await fetch(`${API_URL}/api/employees/${user.employeeId}/submissions`)
       if (!response.ok) throw new Error('Failed to load employee')
       const data = await response.json()
       setEmployee(data)
@@ -79,7 +80,7 @@ export default function EmployeeDashboard({ user, onLogout }) {
   const loadSubmissions = async () => {
     try {
       setError(null)
-      const response = await fetch(`/api/submissions?employeeId=${user.employeeId}&month=${selectedMonth}&year=${selectedYear}`)
+      const response = await fetch(`${API_URL}/api/submissions?employeeId=${user.employeeId}&month=${selectedMonth}&year=${selectedYear}`)
       if (!response.ok) throw new Error('Failed to load submissions')
       const data = await response.json()
       setSubmissions(Array.isArray(data) ? data : [])
@@ -92,7 +93,7 @@ export default function EmployeeDashboard({ user, onLogout }) {
 
   const loadMonthlyStats = async (month = statsMonth, year = statsYear) => {
     try {
-      const response = await fetch(`/api/monthly-stats/${user.employeeId}?month=${month}&year=${year}`)
+      const response = await fetch(`${API_URL}/api/employees/${user.employeeId}/monthly-stats?year=${year}&month=${month}`)
       const data = await response.json()
       setMonthlyStats(data)
     } catch (err) {
@@ -102,7 +103,7 @@ export default function EmployeeDashboard({ user, onLogout }) {
   
   const checkQuota = async (date) => {
     try {
-      const response = await fetch(`/api/quota-check?employeeId=${user.employeeId}&date=${date}`)
+      const response = await fetch(`${API_URL}/api/quota-check?employeeId=${user.employeeId}&date=${date}`)
       const data = await response.json()
       if (data.success) {
         setQuotaInfo(data.quota)
@@ -117,7 +118,7 @@ export default function EmployeeDashboard({ user, onLogout }) {
     setLoading(true)
 
     try {
-      const response = await fetch('/api/submissions', {
+      const response = await fetch(`${API_URL}/api/submissions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

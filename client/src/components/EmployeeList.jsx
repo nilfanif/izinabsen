@@ -5,6 +5,7 @@ import { id } from 'date-fns/locale'
 import Toast from './Toast'
 import LoadingOverlay from './LoadingOverlay'
 import ConfirmModal from './ConfirmModal'
+import { API_URL } from '../config'
 
 export default function EmployeeList() {
   const [employees, setEmployees] = useState([])
@@ -29,7 +30,7 @@ export default function EmployeeList() {
 
   const loadEmployees = async () => {
     try {
-      const response = await fetch('/api/employees')
+      const response = await fetch(`${API_URL}/api/employees`)
       const data = await response.json()
       setEmployees(data)
     } catch (err) {
@@ -70,7 +71,7 @@ export default function EmployeeList() {
     
     setDeleting(true)
     try {
-      const response = await fetch(`/api/employees/${employeeId}`, {
+      const response = await fetch(`${API_URL}/api/employees/${employeeId}`, {
         method: 'DELETE'
       })
       
