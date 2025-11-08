@@ -1,0 +1,751 @@
+import { useState, useEffect } from 'react'
+import { LogOut, Plus, Calendar, Clock, FileText, CheckCircle, XCircle, AlertCircle, Send, Info, TrendingUp, FileQuestion, ChevronDown } from 'lucide-react'
+import { format, subMonths, addMonths } from 'date-fns'
+import { id } from 'date-fns/locale'
+
+export default function EmployeeDashboard({ user, onLogout }) {
+  const [activeTab, setActiveTab] = useState('form')
+  const [submissions, setSubmissions] = useState([])
+  const [employee, setEmployee] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [monthlyStats, setMonthlyStats] = useState(null)
+  
+  // Filter state for history
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
+  
+  // Form state
+  const [formData, setFormData] = useState({
+    type: 'tidak-rekam',
+    subType: '', // 'datang' atau 'pulang' untuk lupa-rekam
+    date: format(new Date(), 'yyyy-MM-dd'),
+    reason: '',
+    description: ''
+  })
+
+  useEffect(() => {
+    loadEmployee()
+    loadMonthlyStats()
+  }, [])
+  
+  useEffect(() => {
+    loadSubmissions()
+  }, [selectedMonth, selectedYear])
+
+  const loadEmployee = async () => {
+    try {
+      const response = await fetch(`/api/employees/${user.employeeId}`)
+      const data = await response.json()
+      setEmployee(data)
+    } catch (err) {
+      console.error('Error loading employee:', err)
+    }
+  }
+
+  const loadSubmissions = async () => {
+    try {
+      const response = await fetch(`/api/submissions?employeeId=${user.employeeId}&month=${selectedMonth}&year=${selectedYear}`)
+      const data = await response.json()
+      setSubmissions(data)
+    } catch (err) {
+      console.error('Error loading submissions:', err)
+    }
+  }
+
+  const loadMonthlyStats = async () => {
+    try {
+      const response = await fetch(`/api/monthly-stats/${user.employeeId}`)
+      const data = await response.json()
+      setMonthlyStats(data)
+    } catch (err) {
+      console.error('Error loading monthly stats:', err)
+    }
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setLoading(true)
+
+    try {
+      const response = await fetch('/api/submissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employeeId: user.employeeId,
+          type: formData.type,
+          subType: formData.subType || null,
+          date: formData.date,
+          reason: formData.reason || null,
+          description: formData.description
+        })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        alert('Pengajuan berhasil dikirim!')
+        setFormData({
+          type: 'tidak-rekam',
+          subType: '',
+          date: format(new Date(), 'yyyy-MM-dd'),
+          reason: '',
+          description: ''
+        })
+        // Reset ke bulan ini setelah submit
+        setSelectedMonth(new Date().getMonth() + 1)
+        setSelectedYear(new Date().getFullYear())
+        loadSubmissions()
+        loadMonthlyStats()
+        setActiveTab('history')
+      } else {
+        alert(data.message || 'Pengajuan gagal. Silakan coba lagi.')
+      }
+    } catch (err) {
+      alert('Terjadi kesalahan. Silakan coba lagi.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const getStatusBadge = (status) => {
+    const badges = {
+      pending: { 
+        class: 'bg-yellow-100 text-yellow-800 border-2 border-yellow-300', 
+        icon: AlertCircle, 
+        text: 'Menunggu Review' 
+      },
+      approved: { 
+        class: 'bg-green-100 text-green-800 border-2 border-green-300', 
+        icon: CheckCircle, 
+        text: 'Disetujui' 
+      },
+      rejected: { 
+        class: 'bg-red-100 text-red-800 border-2 border-red-300', 
+        icon: XCircle, 
+        text: 'Ditolak' 
+      }
+    }
+    const badge = badges[status]
+    const Icon = badge.icon
+    return (
+      <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm ${badge.class} shadow-sm`}>
+        <Icon className="w-4 h-4" />
+        {badge.text}
+      </span>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">Sistem Izin Kehadiran</h1>
+              {employee && (
+                <p className="text-sm text-gray-600">{employee.name} - {employee.nip}</p>
+              )}
+            </div>
+            <button onClick={onLogout} className="btn btn-secondary flex items-center gap-2">
+              <LogOut className="w-4 h-4" />
+              Keluar
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Tabs */}
+        <div className="mb-6 border-b border-gray-200">
+          <nav className="flex space-x-8">
+            <button
+              onClick={() => setActiveTab('form')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'form'
+                  ? 'border-primary-600 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <Plus className="w-5 h-5 inline mr-2" />
+              Ajukan Izin
+            </button>
+            <button
+              onClick={() => setActiveTab('history')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'history'
+                  ? 'border-primary-600 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <FileText className="w-5 h-5 inline mr-2" />
+              Riwayat Pengajuan
+            </button>
+          </nav>
+        </div>
+
+        {/* Form Tab */}
+        {activeTab === 'form' && (
+          <div className="max-w-4xl mx-auto">
+            {/* Monthly Statistics Card - Improved */}
+            {monthlyStats && (
+              <div className="mb-8 bg-gradient-to-br from-primary-600 to-primary-700 rounded-2xl shadow-lg overflow-hidden">
+                <div className="p-6">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                      <TrendingUp className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-white">Statistik Bulan Ini</h3>
+                      <p className="text-primary-100 text-sm">
+                        {format(new Date(), 'MMMM yyyy', { locale: id })}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="bg-white/10 backdrop-blur-sm rounded-xl p-5 border border-white/20">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-sm font-medium text-primary-100">Total Pengajuan</p>
+                        <FileText className="w-5 h-5 text-white/60" />
+                      </div>
+                      <p className="text-3xl font-bold text-white">{monthlyStats.total}</p>
+                      <p className="text-xs text-primary-100 mt-1">Semua jenis izin</p>
+                    </div>
+                    
+                    <div className="bg-white/10 backdrop-blur-sm rounded-xl p-5 border border-white/20">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-sm font-medium text-primary-100">Tidak Rekam</p>
+                        <XCircle className="w-5 h-5 text-white/60" />
+                      </div>
+                      <p className="text-3xl font-bold text-white">{monthlyStats.tidakRekam}</p>
+                      <p className="text-xs text-primary-100 mt-1">Tidak ada batasan</p>
+                    </div>
+                    
+                    <div className="bg-white/10 backdrop-blur-sm rounded-xl p-5 border border-white/20">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-sm font-medium text-primary-100">Kuota Gabungan</p>
+                        <AlertCircle className="w-5 h-5 text-white/60" />
+                      </div>
+                      <div className="flex items-baseline gap-2">
+                        <p className="text-3xl font-bold text-white">{monthlyStats.quotaUsed}</p>
+                        <p className="text-xl text-primary-200">/ {monthlyStats.quotaLimit}</p>
+                      </div>
+                      <div className="mt-2 flex items-center gap-2">
+                        <div className="flex-1 bg-white/20 rounded-full h-2 overflow-hidden">
+                          <div 
+                            className="bg-white h-full rounded-full transition-all duration-300"
+                            style={{ width: `${(monthlyStats.quotaUsed / monthlyStats.quotaLimit) * 100}%` }}
+                          ></div>
+                        </div>
+                        <p className="text-xs text-primary-100 font-medium">
+                          Sisa {monthlyStats.quotaRemaining}x
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-white/10 backdrop-blur-sm rounded-xl p-5 border border-white/20">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-sm font-medium text-primary-100">Breakdown</p>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-primary-100">Terlambat:</span>
+                          <span className="text-white font-bold">{monthlyStats.terlambat}x</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-primary-100">Lupa Rekam:</span>
+                          <span className="text-white font-bold">{monthlyStats.lupaRekam}x</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Form Card - Improved */}
+            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+              {/* Form Header */}
+              <div className="bg-gradient-to-r from-primary-50 to-blue-50 px-8 py-6 border-b border-gray-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-primary-600 rounded-xl flex items-center justify-center shadow-lg">
+                    <Plus className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">Ajukan Izin Kehadiran</h2>
+                    <p className="text-sm text-gray-600 mt-1">Lengkapi formulir di bawah ini dengan benar</p>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Form Body */}
+              <form onSubmit={handleSubmit} className="p-8">
+                <div className="space-y-8">
+                  {/* Jenis Izin */}
+                  <div className="space-y-3">
+                    <label className="block text-sm font-semibold text-gray-900">
+                      Jenis Izin <span className="text-red-500">*</span>
+                    </label>
+                    <div className="grid grid-cols-3 gap-4">
+                      {/* Tidak Dapat Rekam */}
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, type: 'tidak-rekam', subType: '', reason: '' })}
+                        className={`relative p-5 rounded-xl border-2 transition-all duration-200 ${
+                          formData.type === 'tidak-rekam'
+                            ? 'border-primary-600 bg-primary-50 shadow-md'
+                            : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
+                        }`}
+                      >
+                        <div className="flex flex-col items-center text-center gap-3">
+                          <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
+                            formData.type === 'tidak-rekam' ? 'bg-primary-600' : 'bg-gray-100'
+                          }`}>
+                            <XCircle className={`w-6 h-6 ${
+                              formData.type === 'tidak-rekam' ? 'text-white' : 'text-gray-400'
+                            }`} />
+                          </div>
+                          <div>
+                            <p className={`font-semibold text-sm ${
+                              formData.type === 'tidak-rekam' ? 'text-primary-900' : 'text-gray-900'
+                            }`}>
+                              Tidak Dapat Rekam
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Tidak dapat rekam kehadiran
+                            </p>
+                          </div>
+                          {formData.type === 'tidak-rekam' && (
+                            <CheckCircle className="w-5 h-5 text-primary-600 absolute top-3 right-3" />
+                          )}
+                        </div>
+                      </button>
+
+                      {/* Terlambat Rekam */}
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, type: 'terlambat-rekam', subType: '', reason: '' })}
+                        className={`relative p-5 rounded-xl border-2 transition-all duration-200 ${
+                          formData.type === 'terlambat-rekam'
+                            ? 'border-orange-600 bg-orange-50 shadow-md'
+                            : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
+                        }`}
+                      >
+                        <div className="flex flex-col items-center text-center gap-3">
+                          <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
+                            formData.type === 'terlambat-rekam' ? 'bg-orange-600' : 'bg-gray-100'
+                          }`}>
+                            <Clock className={`w-6 h-6 ${
+                              formData.type === 'terlambat-rekam' ? 'text-white' : 'text-gray-400'
+                            }`} />
+                          </div>
+                          <div>
+                            <p className={`font-semibold text-sm ${
+                              formData.type === 'terlambat-rekam' ? 'text-orange-900' : 'text-gray-900'
+                            }`}>
+                              Terlambat Rekam
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Terlambat rekam kehadiran
+                            </p>
+                          </div>
+                          {formData.type === 'terlambat-rekam' && (
+                            <CheckCircle className="w-5 h-5 text-orange-600 absolute top-3 right-3" />
+                          )}
+                        </div>
+                      </button>
+
+                      {/* Lupa Rekam */}
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, type: 'lupa-rekam', subType: '', reason: '' })}
+                        className={`relative p-5 rounded-xl border-2 transition-all duration-200 ${
+                          formData.type === 'lupa-rekam'
+                            ? 'border-purple-600 bg-purple-50 shadow-md'
+                            : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
+                        }`}
+                      >
+                        <div className="flex flex-col items-center text-center gap-3">
+                          <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
+                            formData.type === 'lupa-rekam' ? 'bg-purple-600' : 'bg-gray-100'
+                          }`}>
+                            <FileQuestion className={`w-6 h-6 ${
+                              formData.type === 'lupa-rekam' ? 'text-white' : 'text-gray-400'
+                            }`} />
+                          </div>
+                          <div>
+                            <p className={`font-semibold text-sm ${
+                              formData.type === 'lupa-rekam' ? 'text-purple-900' : 'text-gray-900'
+                            }`}>
+                              Lupa Rekam
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Lupa rekam kehadiran
+                            </p>
+                          </div>
+                          {formData.type === 'lupa-rekam' && (
+                            <CheckCircle className="w-5 h-5 text-purple-600 absolute top-3 right-3" />
+                          )}
+                        </div>
+                      </button>
+                    </div>
+                    
+                    {/* Warning untuk kuota gabungan */}
+                    {(formData.type === 'terlambat-rekam' || formData.type === 'lupa-rekam') && monthlyStats && (
+                      <div className={`mt-3 p-4 rounded-xl border-2 flex items-start gap-3 ${
+                        monthlyStats.canSubmitQuota 
+                          ? 'bg-blue-50 border-blue-200' 
+                          : 'bg-red-50 border-red-200'
+                      }`}>
+                        <Info className={`w-5 h-5 mt-0.5 flex-shrink-0 ${
+                          monthlyStats.canSubmitQuota ? 'text-blue-600' : 'text-red-600'
+                        }`} />
+                        <div className="flex-1">
+                          {monthlyStats.canSubmitQuota ? (
+                            <div>
+                              <p className="text-sm font-semibold text-blue-900">Informasi Kuota Gabungan</p>
+                              <p className="text-sm text-blue-700 mt-1">
+                                Kuota terpakai: <strong>{monthlyStats.quotaUsed}/{monthlyStats.quotaLimit}</strong> 
+                                (Terlambat: {monthlyStats.terlambat}x, Lupa: {monthlyStats.lupaRekam}x)
+                                <br />
+                                Sisa kuota: <strong>{monthlyStats.quotaRemaining}x</strong>
+                              </p>
+                            </div>
+                          ) : (
+                            <div>
+                              <p className="text-sm font-semibold text-red-900">Kuota Tercapai</p>
+                              <p className="text-sm text-red-700 mt-1">
+                                Anda telah mencapai batas maksimal 10x pengajuan (Terlambat + Lupa Rekam) untuk bulan ini.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Tanggal */}
+                  <div className="space-y-3">
+                    <label className="block text-sm font-semibold text-gray-900">
+                      Tanggal <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                      <input
+                        type="date"
+                        value={formData.date}
+                        onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                        className="w-full pl-12 pr-4 py-3.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all text-gray-900 font-medium"
+                        required
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500 flex items-center gap-1">
+                      <Info className="w-3 h-3" />
+                      Pilih tanggal kejadian yang akan diajukan izin
+                    </p>
+                  </div>
+
+                  {/* SubType Field - Only for "lupa-rekam" */}
+                  {formData.type === 'lupa-rekam' && (
+                    <div className="space-y-3">
+                      <label className="block text-sm font-semibold text-gray-900">
+                        Jenis Lupa Rekam <span className="text-red-500">*</span>
+                      </label>
+                      <div className="grid grid-cols-2 gap-4">
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, subType: 'datang' })}
+                          className={`p-4 rounded-xl border-2 transition-all duration-200 ${
+                            formData.subType === 'datang'
+                              ? 'border-purple-600 bg-purple-50 shadow-md'
+                              : 'border-gray-200 bg-white hover:border-gray-300'
+                          }`}
+                        >
+                          <div className="text-center">
+                            <p className={`font-semibold ${
+                              formData.subType === 'datang' ? 'text-purple-900' : 'text-gray-900'
+                            }`}>
+                              Lupa Rekam Datang
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">Lupa absen saat datang</p>
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, subType: 'pulang' })}
+                          className={`p-4 rounded-xl border-2 transition-all duration-200 ${
+                            formData.subType === 'pulang'
+                              ? 'border-purple-600 bg-purple-50 shadow-md'
+                              : 'border-gray-200 bg-white hover:border-gray-300'
+                          }`}
+                        >
+                          <div className="text-center">
+                            <p className={`font-semibold ${
+                              formData.subType === 'pulang' ? 'text-purple-900' : 'text-gray-900'
+                            }`}>
+                              Lupa Rekam Pulang
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">Lupa absen saat pulang</p>
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Conditional Reason Field - Only for "tidak-rekam" */}
+                  {formData.type === 'tidak-rekam' && (
+                    <div className="space-y-3">
+                      <label className="block text-sm font-semibold text-gray-900">
+                        Alasan <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={formData.reason}
+                        onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+                        className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all text-gray-900 font-medium bg-white"
+                        required
+                      >
+                        <option value="">-- Pilih Alasan --</option>
+                        <option value="sakit">🏥 Sakit</option>
+                        <option value="dinas-luar">🚗 Dinas Luar</option>
+                        <option value="kendala-teknis">⚙️ Kendala Teknis</option>
+                        <option value="lainnya">📝 Lainnya</option>
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Keterangan */}
+                  <div className="space-y-3">
+                    <label className="block text-sm font-semibold text-gray-900">
+                      {formData.type === 'terlambat-rekam' ? 'Alasan Terlambat' : formData.type === 'lupa-rekam' ? 'Alasan Lupa Rekam' : 'Keterangan Detail'} 
+                      <span className="text-red-500"> *</span>
+                    </label>
+                    <textarea
+                      value={formData.description}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all text-gray-900 resize-none"
+                      rows="5"
+                      placeholder={
+                        formData.type === 'terlambat-rekam' 
+                          ? 'Contoh: Saya terlambat rekam kehadiran karena menghadiri rapat mendadak di kantor cabang...'
+                          : formData.type === 'lupa-rekam'
+                          ? 'Contoh: Saya lupa melakukan rekam kehadiran karena terburu-buru...'
+                          : 'Contoh: Saya tidak dapat melakukan rekam kehadiran karena sedang sakit dan dirawat di rumah sakit...'
+                      }
+                      required
+                    ></textarea>
+                    <p className="text-xs text-gray-500 flex items-center gap-1">
+                      <Info className="w-3 h-3" />
+                      Jelaskan dengan detail dan jelas agar mudah dipahami
+                    </p>
+                  </div>
+
+                  {/* Submit Button */}
+                  <div className="pt-4">
+                    <button
+                      type="submit"
+                      disabled={loading || ((formData.type === 'terlambat-rekam' || formData.type === 'lupa-rekam') && monthlyStats && !monthlyStats.canSubmitQuota) || (formData.type === 'lupa-rekam' && !formData.subType)}
+                      className="w-full bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-semibold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-md flex items-center justify-center gap-3 text-lg"
+                    >
+                      {loading ? (
+                        <>
+                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                          <span>Mengirim...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-5 h-5" />
+                          <span>Kirim Pengajuan</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* History Tab */}
+        {activeTab === 'history' && (
+          <div className="max-w-7xl mx-auto">
+            {/* Header with Month Filter */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-primary-600 rounded-xl flex items-center justify-center">
+                    <FileText className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">Riwayat Pengajuan</h2>
+                    <p className="text-sm text-gray-600 mt-1">Total: {submissions.length} pengajuan</p>
+                  </div>
+                </div>
+                
+                {/* Month Filter */}
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => {
+                      const prevDate = subMonths(new Date(selectedYear, selectedMonth - 1), 1)
+                      setSelectedMonth(prevDate.getMonth() + 1)
+                      setSelectedYear(prevDate.getFullYear())
+                    }}
+                    className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
+                  >
+                    <ChevronDown className="w-5 h-5 text-gray-600 rotate-90" />
+                  </button>
+                  
+                  <div className="px-4 py-2 bg-primary-50 border-2 border-primary-200 rounded-lg">
+                    <p className="text-sm font-semibold text-primary-900">
+                      {format(new Date(selectedYear, selectedMonth - 1), 'MMMM yyyy', { locale: id })}
+                    </p>
+                  </div>
+                  
+                  <button
+                    onClick={() => {
+                      const nextDate = addMonths(new Date(selectedYear, selectedMonth - 1), 1)
+                      setSelectedMonth(nextDate.getMonth() + 1)
+                      setSelectedYear(nextDate.getFullYear())
+                    }}
+                    className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
+                  >
+                    <ChevronDown className="w-5 h-5 text-gray-600 -rotate-90" />
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      setSelectedMonth(new Date().getMonth() + 1)
+                      setSelectedYear(new Date().getFullYear())
+                    }}
+                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 transition-colors"
+                  >
+                    Bulan Ini
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {submissions.length === 0 ? (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 text-center py-16">
+                <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Belum Ada Pengajuan</h3>
+                <p className="text-gray-500 text-sm">Anda belum pernah mengajukan izin kehadiran</p>
+              </div>
+            ) : (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                {/* Table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                      <tr>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          Tanggal
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          Jenis Izin
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          Alasan
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          Catatan Review
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {submissions.map((submission) => (
+                        <tr key={submission.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <Calendar className="w-4 h-4 text-gray-400" />
+                              <div>
+                                <div className="text-sm font-medium text-gray-900">
+                                  {format(new Date(submission.date), 'dd MMM yyyy', { locale: id })}
+                                </div>
+                                {submission.submittedAt && (
+                                  <div className="text-xs text-gray-500">
+                                    {format(new Date(submission.submittedAt), 'HH:mm', { locale: id })}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2">
+                              {submission.type === 'tidak-rekam' ? (
+                                <div className="w-8 h-8 bg-primary-100 rounded-lg flex items-center justify-center">
+                                  <XCircle className="w-4 h-4 text-primary-600" />
+                                </div>
+                              ) : submission.type === 'terlambat-rekam' ? (
+                                <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
+                                  <Clock className="w-4 h-4 text-orange-600" />
+                                </div>
+                              ) : (
+                                <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                                  <FileQuestion className="w-4 h-4 text-purple-600" />
+                                </div>
+                              )}
+                              <div>
+                                <div className="text-sm font-medium text-gray-900">
+                                  {submission.type === 'tidak-rekam' ? 'Tidak Rekam' : submission.type === 'terlambat-rekam' ? 'Terlambat' : 'Lupa Rekam'}
+                                </div>
+                                {submission.reason && (
+                                  <div className="text-xs text-gray-500 capitalize">
+                                    {submission.reason.replace('-', ' ')}
+                                  </div>
+                                )}
+                                {submission.subType && (
+                                  <div className="text-xs text-gray-500 capitalize">
+                                    {submission.subType === 'datang' ? 'Datang' : 'Pulang'}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-sm text-gray-700 max-w-xs">
+                              <p className="line-clamp-2">{submission.description}</p>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {getStatusBadge(submission.status)}
+                          </td>
+                          <td className="px-6 py-4">
+                            {submission.status !== 'pending' && submission.reviewedAt ? (
+                              <div className="text-sm">
+                                {submission.reviewedBy && (
+                                  <p className={`font-medium ${
+                                    submission.status === 'approved' ? 'text-green-700' : 'text-red-700'
+                                  }`}>
+                                    {submission.reviewedBy}
+                                  </p>
+                                )}
+                                {submission.reviewNote && (
+                                  <p className="text-gray-600 text-xs mt-1 max-w-xs line-clamp-2">
+                                    {submission.reviewNote}
+                                  </p>
+                                )}
+                                <p className="text-gray-400 text-xs mt-1">
+                                  {format(new Date(submission.reviewedAt), 'dd MMM yyyy, HH:mm', { locale: id })}
+                                </p>
+                              </div>
+                            ) : (
+                              <span className="text-sm text-gray-400 italic">Menunggu review</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

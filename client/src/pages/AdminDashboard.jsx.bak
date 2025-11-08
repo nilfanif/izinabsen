@@ -1,0 +1,512 @@
+import { useState, useEffect } from 'react'
+import { LogOut, Users, FileText, CheckCircle, XCircle, AlertCircle, TrendingUp, UserPlus } from 'lucide-react'
+import { format } from 'date-fns'
+import { id } from 'date-fns/locale'
+import SubmissionsTable from '../components/SubmissionsTable'
+import RegistrationsTable from '../components/RegistrationsTable'
+
+export default function AdminDashboard({ user, onLogout }) {
+  const [activeTab, setActiveTab] = useState('pending')
+  const [mainTab, setMainTab] = useState('submissions') // 'submissions' or 'registrations'
+  const [submissions, setSubmissions] = useState([])
+  const [registrations, setRegistrations] = useState([])
+  const [stats, setStats] = useState({ total: 0, pending: 0, approved: 0, rejected: 0 })
+  const [selectedSubmission, setSelectedSubmission] = useState(null)
+  const [selectedRegistration, setSelectedRegistration] = useState(null)
+  const [reviewNote, setReviewNote] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (mainTab === 'submissions') {
+      loadSubmissions()
+      loadStats()
+    } else {
+      loadRegistrations()
+    }
+  }, [activeTab, mainTab])
+
+  const loadSubmissions = async () => {
+    try {
+      const status = activeTab === 'all' ? '' : activeTab
+      const response = await fetch(`/api/submissions?status=${status}`)
+      const data = await response.json()
+      setSubmissions(data)
+    } catch (err) {
+      console.error('Error loading submissions:', err)
+    }
+  }
+
+  const loadStats = async () => {
+    try {
+      const response = await fetch('/api/statistics')
+      const data = await response.json()
+      setStats(data)
+    } catch (err) {
+      console.error('Error loading stats:', err)
+    }
+  }
+
+  const loadRegistrations = async () => {
+    try {
+      const status = activeTab === 'all' ? '' : activeTab
+      const response = await fetch(`/api/registration-requests?status=${status}`)
+      const data = await response.json()
+      setRegistrations(data)
+    } catch (err) {
+      console.error('Error loading registrations:', err)
+    }
+  }
+
+  const handleReview = async (submissionId, status) => {
+    if (!reviewNote.trim()) {
+      alert('Silakan masukkan catatan review')
+      return
+    }
+
+    setLoading(true)
+    try {
+      const response = await fetch(`/api/submissions/${submissionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status,
+          reviewNote,
+          reviewedBy: user.name
+        })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        alert(`Pengajuan berhasil ${status === 'approved' ? 'disetujui' : 'ditolak'}`)
+        setSelectedSubmission(null)
+        setReviewNote('')
+        loadSubmissions()
+        loadStats()
+      }
+    } catch (err) {
+      alert('Terjadi kesalahan. Silakan coba lagi.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleRegistrationReview = async (registrationId, action) => {
+    if (action === 'reject' && !reviewNote.trim()) {
+      alert('Silakan masukkan alasan penolakan')
+      return
+    }
+
+    const confirmMessage = action === 'approve' 
+      ? 'Apakah Anda yakin ingin menyetujui pendaftaran ini?'
+      : 'Apakah Anda yakin ingin menolak pendaftaran ini?'
+    
+    if (!confirm(confirmMessage)) return
+
+    setLoading(true)
+    try {
+      const response = await fetch(`/api/registration-requests/${registrationId}/${action}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          approvedBy: user.id,
+          rejectedBy: user.id,
+          reviewNote: reviewNote || (action === 'approve' ? 'Disetujui' : '')
+        })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        alert(action === 'approve' 
+          ? 'Pendaftaran berhasil disetujui! Pegawai sekarang bisa login.'
+          : 'Pendaftaran ditolak.')
+        setSelectedRegistration(null)
+        setReviewNote('')
+        loadRegistrations()
+      } else {
+        alert(data.message || 'Terjadi kesalahan')
+      }
+    } catch (err) {
+      alert('Terjadi kesalahan. Silakan coba lagi.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const getStatusBadge = (status) => {
+    const badges = {
+      pending: { class: 'badge-pending', icon: AlertCircle, text: 'Menunggu' },
+      approved: { class: 'badge-approved', icon: CheckCircle, text: 'Disetujui' },
+      rejected: { class: 'badge-rejected', icon: XCircle, text: 'Ditolak' }
+    }
+    const badge = badges[status]
+    const Icon = badge.icon
+    return (
+      <span className={`badge ${badge.class}`}>
+        <Icon className="w-4 h-4 mr-1" />
+        {badge.text}
+      </span>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">Dashboard Admin</h1>
+              <p className="text-sm text-gray-600">{user.name}</p>
+            </div>
+            <button onClick={onLogout} className="btn btn-secondary flex items-center gap-2">
+              <LogOut className="w-4 h-4" />
+              Keluar
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Statistics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="card bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-blue-600 mb-1">Total Pengajuan</p>
+                <p className="text-3xl font-bold text-blue-900">{stats.total}</p>
+              </div>
+              <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center">
+                <FileText className="w-6 h-6 text-white" />
+              </div>
+            </div>
+          </div>
+
+          <div className="card bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-yellow-600 mb-1">Menunggu</p>
+                <p className="text-3xl font-bold text-yellow-900">{stats.pending}</p>
+              </div>
+              <div className="w-12 h-12 bg-yellow-600 rounded-full flex items-center justify-center">
+                <AlertCircle className="w-6 h-6 text-white" />
+              </div>
+            </div>
+          </div>
+
+          <div className="card bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-green-600 mb-1">Disetujui</p>
+                <p className="text-3xl font-bold text-green-900">{stats.approved}</p>
+              </div>
+              <div className="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center">
+                <CheckCircle className="w-6 h-6 text-white" />
+              </div>
+            </div>
+          </div>
+
+          <div className="card bg-gradient-to-br from-red-50 to-red-100 border-red-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-red-600 mb-1">Ditolak</p>
+                <p className="text-3xl font-bold text-red-900">{stats.rejected}</p>
+              </div>
+              <div className="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center">
+                <XCircle className="w-6 h-6 text-white" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Tabs */}
+        <div className="mb-6">
+          <div className="border-b border-gray-200">
+            <nav className="flex space-x-8">
+              <button
+                onClick={() => { setMainTab('submissions'); setActiveTab('pending'); }}
+                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  mainTab === 'submissions'
+                    ? 'border-primary-600 text-primary-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <FileText className="w-5 h-5 inline mr-2" />
+                Pengajuan Izin
+              </button>
+              <button
+                onClick={() => { setMainTab('registrations'); setActiveTab('pending'); }}
+                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  mainTab === 'registrations'
+                    ? 'border-primary-600 text-primary-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <UserPlus className="w-5 h-5 inline mr-2" />
+                Pendaftaran Pegawai
+                {registrations.filter(r => r.status === 'pending').length > 0 && (
+                  <span className="ml-2 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
+                    {registrations.filter(r => r.status === 'pending').length}
+                  </span>
+                )}
+              </button>
+            </nav>
+          </div>
+        </div>
+
+        {/* Sub Tabs */}
+        <div className="mb-6 border-b border-gray-200">
+          <nav className="flex space-x-8">
+            <button
+              onClick={() => setActiveTab('pending')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'pending'
+                  ? 'border-primary-600 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <AlertCircle className="w-5 h-5 inline mr-2" />
+              Menunggu {mainTab === 'submissions' && `(${stats.pending})`}
+            </button>
+            <button
+              onClick={() => setActiveTab('approved')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'approved'
+                  ? 'border-primary-600 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <CheckCircle className="w-5 h-5 inline mr-2" />
+              Disetujui
+            </button>
+            <button
+              onClick={() => setActiveTab('rejected')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'rejected'
+                  ? 'border-primary-600 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <XCircle className="w-5 h-5 inline mr-2" />
+              Ditolak
+            </button>
+            <button
+              onClick={() => setActiveTab('all')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'all'
+                  ? 'border-primary-600 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <FileText className="w-5 h-5 inline mr-2" />
+              Semua
+            </button>
+          </nav>
+        </div>
+
+        {/* Content */}
+        {mainTab === 'submissions' ? (
+          <SubmissionsTable 
+            submissions={submissions}
+            onReview={setSelectedSubmission}
+            getStatusBadge={getStatusBadge}
+          />
+        ) : (
+          <RegistrationsTable 
+            registrations={registrations}
+            onReview={setSelectedRegistration}
+            getStatusBadge={getStatusBadge}
+          />
+        )}
+      </div>
+
+      {/* Registration Review Modal */}
+      {selectedRegistration && (
+            <div className="space-y-4">
+              {registrations.map((registration) => (
+                <div key={registration.id} className="card hover:shadow-md transition-shadow">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <h3 className="font-semibold text-lg text-gray-900">
+                            {registration.name}
+                          </h3>
+                          <p className="text-sm text-gray-600">NIP: {registration.nip}</p>
+                        </div>
+                        {getStatusBadge(registration.status)}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4 mt-3">
+                        <div className="flex items-start gap-2">
+                          <Mail className="w-4 h-4 text-gray-400 mt-0.5" />
+                          <div>
+                            <p className="text-xs text-gray-500">Email</p>
+                            <p className="text-sm text-gray-900">{registration.email}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <Users className="w-4 h-4 text-gray-400 mt-0.5" />
+                          <div>
+                            <p className="text-xs text-gray-500">Username</p>
+                            <p className="text-sm text-gray-900">{registration.username}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <Briefcase className="w-4 h-4 text-gray-400 mt-0.5" />
+                          <div>
+                            <p className="text-xs text-gray-500">Jabatan</p>
+                            <p className="text-sm text-gray-900">{registration.position}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <Building2 className="w-4 h-4 text-gray-400 mt-0.5" />
+                          <div>
+                            <p className="text-xs text-gray-500">Bagian/Bidang</p>
+                            <p className="text-sm text-gray-900">{registration.department}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <Calendar className="w-4 h-4" />
+                          <span>Mendaftar: {format(new Date(registration.created_at), 'dd MMM yyyy HH:mm', { locale: id })}</span>
+                        </div>
+                      </div>
+
+                      {registration.status === 'pending' && (
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                          <button
+                            onClick={() => setSelectedRegistration(registration)}
+                            className="btn btn-primary btn-sm"
+                          >
+                            Review Pendaftaran
+                          </button>
+                        </div>
+                      )}
+
+                      {registration.status !== 'pending' && registration.reviewed_at && (
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                          <div className="flex items-start gap-2">
+                            {registration.status === 'approved' ? (
+                              <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
+                            ) : (
+                              <XCircle className="w-5 h-5 text-red-600 mt-0.5" />
+                            )}
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-gray-700">
+                                {registration.status === 'approved' ? 'Disetujui' : 'Ditolak'}
+                              </p>
+                              {registration.review_note && (
+                                <p className="text-sm text-gray-600 mt-1">{registration.review_note}</p>
+                              )}
+                              <p className="text-xs text-gray-500 mt-1">
+                                {format(new Date(registration.reviewed_at), 'dd MMM yyyy HH:mm', { locale: id })}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        )}
+      </div>
+
+      {/* Registration Review Modal */}
+      {selectedRegistration && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4">
+              <h3 className="text-xl font-bold text-gray-900">Review Pendaftaran</h3>
+            </div>
+
+            <div className="p-6">
+              <div className="space-y-4 mb-6">
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Nama Lengkap</label>
+                  <p className="text-base text-gray-900 mt-1">{selectedRegistration.name}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">NIP</label>
+                    <p className="text-base text-gray-900 mt-1">{selectedRegistration.nip}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Email</label>
+                    <p className="text-base text-gray-900 mt-1">{selectedRegistration.email}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Username</label>
+                    <p className="text-base text-gray-900 mt-1">{selectedRegistration.username}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Tanggal Daftar</label>
+                    <p className="text-base text-gray-900 mt-1">
+                      {format(new Date(selectedRegistration.created_at), 'dd MMM yyyy HH:mm', { locale: id })}
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Jabatan</label>
+                    <p className="text-base text-gray-900 mt-1">{selectedRegistration.position}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Bagian/Bidang</label>
+                    <p className="text-base text-gray-900 mt-1">{selectedRegistration.department}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mb-6">
+                <label className="label">Catatan Review (Opsional untuk Approve)</label>
+                <textarea
+                  value={reviewNote}
+                  onChange={(e) => setReviewNote(e.target.value)}
+                  className="input"
+                  rows="3"
+                  placeholder="Masukkan catatan review..."
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => handleRegistrationReview(selectedRegistration.id, 'approve')}
+                  disabled={loading}
+                  className="btn btn-success flex-1"
+                >
+                  {loading ? 'Memproses...' : '✓ Setujui'}
+                </button>
+                <button
+                  onClick={() => handleRegistrationReview(selectedRegistration.id, 'reject')}
+                  disabled={loading}
+                  className="btn btn-danger flex-1"
+                >
+                  {loading ? 'Memproses...' : '✗ Tolak'}
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedRegistration(null)
+                    setReviewNote('')
+                  }}
+                  disabled={loading}
+                  className="btn btn-secondary"
+                >
+                  Batal
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
