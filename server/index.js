@@ -12,6 +12,8 @@ const PORT = process.env.PORT || 3001;
 // CORS configuration for production
 const allowedOrigins = [
   'http://localhost:3000',
+  'https://izinabsen.web.app',
+  'https://izinabsen.firebaseapp.com',
   'https://kehadiran-2e5a5.web.app',
   'https://kehadiran-2e5a5.firebaseapp.com'
 ];
