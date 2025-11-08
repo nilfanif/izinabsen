@@ -6,14 +6,16 @@ if (!process.env.SUPABASE_URL) {
   throw new Error('Missing SUPABASE_URL environment variable');
 }
 
-if (!process.env.SUPABASE_ANON_KEY) {
-  throw new Error('Missing SUPABASE_ANON_KEY environment variable');
+// Support both SUPABASE_KEY and SUPABASE_ANON_KEY
+const supabaseKey = process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY;
+if (!supabaseKey) {
+  throw new Error('Missing SUPABASE_KEY or SUPABASE_ANON_KEY environment variable');
 }
 
 // Create Supabase client
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY,
+  supabaseKey,
   {
     auth: {
       persistSession: false,
